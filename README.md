@@ -1,17 +1,23 @@
-# Claims Denial Triage + Appeal Drafting Demo
+# Claims Denial Triage + Appeal Drafting System
 
-A demo AI system for healthcare insurance claim denials: it reads a
-denial letter, pulls out the structured facts, figures out why the claim
-was denied, and drafts an appeal letter arguing it should be paid — with
-a human always reviewing before anything goes out, an evaluation harness
-that can detect when the AI's accuracy regresses, and a full audit trail
-of every decision (AI or human) made along the way.
+An AI system for healthcare insurance claim denials: it reads a denial
+letter, pulls out the structured facts, figures out why the claim was
+denied, and drafts an appeal letter arguing it should be paid — with a
+human always reviewing before anything goes out, an evaluation harness
+that detects when the AI's accuracy regresses, and a full audit trail of
+every decision (AI or human) made along the way.
 
-Built to demonstrate production-grade AI engineering practices: forced
+Built around production-grade AI engineering practices: forced
 structured output (not hoping free text parses as JSON), a deterministic
 eval/regression harness, an immutable audit log, and a multi-tenant
 architecture where the same pipeline code serves multiple client
 companies off configuration alone.
+
+**This is a self-contained reference implementation, not a deployed
+production system** — it runs against synthetic data with no
+authentication layer and no connection to any real claims/billing
+system. See [Path to production](#path-to-production) for exactly
+what closing that gap would take.
 
 ## What it does
 
@@ -98,12 +104,12 @@ What deliberately does **not** vary: the six classification categories
 are shared across every profile — they're generic root causes for any
 healthcare claim denial, not specific to one client's document type.
 
-Two example profiles ship with this demo — `meridian_eyecare_partners`
+Two example profiles ship with this project — `meridian_eyecare_partners`
 (an eye-care claims example) and `summit_dme_providers` (a durable
 medical equipment / complex rehab technology example) — proving the same
 pipeline code handles genuinely different claim types via configuration
 alone, not a rewrite. See `/profiles` in the running app for a live
-side-by-side comparison, including a demo button that reprocesses a real
+side-by-side comparison, including a button that reprocesses a real
 denial from each client back-to-back.
 
 **Adding a third profile**: create `backend/profiles/<key>.py` following
@@ -218,7 +224,7 @@ frontend/
       DetailView.tsx           # the reviewer workspace — see "Frontend" below
       NewDenialView.tsx         # manual "New Denial" create form
       DashboardView.tsx          # monitoring dashboard — eval trend, confidence distribution, cost
-      ProfilesView.tsx            # multi-client profile comparison + live demo
+      ProfilesView.tsx            # multi-client profile comparison + live processing
     App.tsx                 # routing + top nav (incl. dark mode toggle)
     index.css                # design system (Tailwind v4 @theme block)
   .env.example
@@ -340,7 +346,7 @@ Only rewrites the JSON files; run `seed.py` again to load the result.
 | GET | `/api/profiles/{key}` | Full profile detail — extraction schema, category taxonomy, appeal guidance |
 | GET | `/api/usage` | Token/cost totals, by-stage and by-client breakdowns |
 | GET | `/api/analytics/confidence-distribution` | Live classification-confidence histogram |
-| POST | `/api/demo/reset-sample` | Demo-only: resets one already-processed denial per client back to `new`, for live re-demonstration |
+| POST | `/api/demo/reset-sample` | Test-utility only, not for production use: resets one already-processed denial per client back to `new`, so the live pipeline can be re-triggered on demand |
 
 ## Frontend
 
@@ -355,7 +361,10 @@ Only rewrites the JSON files; run `seed.py` again to load the result.
 - **Dashboard** (`/dashboard`) — eval accuracy trend + regression
   status, confidence distribution, token/cost usage.
 - **Profiles** (`/profiles`) — side-by-side client comparison, plus a
-  live demo that reprocesses a real denial from each client on demand.
+  live comparison that reprocesses a real denial from each client on
+  demand, using a clearly-labeled test-utility endpoint (see [API
+  reference](#api-reference)) rather than a general-purpose data-reset
+  feature.
 
 Built with React + TypeScript + Vite, Tailwind CSS v4 (a single `@theme`
 block in `index.css` — no separate config file, colors/spacing defined
@@ -366,22 +375,75 @@ handled by the library, not hand-rolled). Supports light/dark mode
 explicit choice) and is responsive from mobile widths up through
 ultrawide monitors.
 
-## What's not built (known limitations)
+## Path to production
 
-- **No authentication or access control.** Fine for a local demo, not
-  acceptable for anything touching real data.
-- **No real EHR/billing system integration.** This is a standalone
-  demo — it doesn't read from or write back to any real practice
-  management or claims system. Real deployment would need that,
-  particularly for medical-necessity appeals, which benefit from actual
-  clinical documentation this system doesn't have access to (it only
-  ever reads the denial letter itself).
-- **No judgment on whether the original denial was valid.** See "What
-  it does" above — it always attempts an appeal once confidence clears
-  the threshold.
+This system is architecturally ready for the pieces below — the audit
+trail, eval/regression gate, and profile abstraction were built with
+these in mind — but none of them are implemented. Being explicit about
+the gap matters more than pretending it isn't there:
+
+### Security & access control
+- **No authentication or authorization exist.** Every API endpoint is
+  open. A real deployment needs real identity (SSO/OIDC against the
+  operating company's existing directory) and role-based access —
+  reviewers, compliance staff, and admins are not the same role and
+  shouldn't have the same permissions (e.g. only compliance should be
+  able to see the full audit trail across all reviewers; only a
+  reviewer assigned to a client should see that client's queue).
+- **Secrets management.** The Anthropic API key and DB credentials live
+  in a local `.env` file. Production needs a real secrets manager
+  (e.g. AWS Secrets Manager, Vault) and rotation, not a file on disk.
+
+### Integration
+- **No connection to any real claims/billing/EHR system.** This reads a
+  denial letter as pasted-in text and writes nothing back anywhere —
+  there is no live integration with a practice management system,
+  clearinghouse, or payer portal. That's a real, separate integration
+  project per client, not an extension of this codebase.
+- **Medical-necessity appeals need clinical documentation this system
+  doesn't have.** It only ever reads the denial letter itself — a
+  production version arguing medical necessity persuasively would need
+  read access to the relevant chart notes from the practice's EHR.
+
+### Compliance
+- **PHI handling.** This system was built and tested entirely on
+  synthetic data by design. Touching real patient data requires a
+  signed BAA with the model provider and a real HIPAA compliance
+  review before anything here processes a real record.
+- **No data retention/deletion policy** implemented — a real deployment
+  needs one, especially for an immutable audit log holding PHI.
+
+### Reliability & scale
+- **Synchronous processing.** `POST /.../process` blocks on a live
+  ~20-30 second LLM call chain. Production needs this moved to a
+  background job queue (e.g. Celery/RQ) with the frontend polling or
+  subscribing for status, not holding an HTTP connection open.
+- **No rate limiting or cost caps** on pipeline usage.
+- **Single instance, no redundancy** — one Postgres, one API process.
+  Production needs a managed, replicated database and horizontally
+  scaled API instances behind a load balancer.
+- **No CI/CD.** The eval harness exists and is cheap to run — the
+  missing piece is wiring it into a pipeline that blocks a prompt or
+  model change from merging if it regresses accuracy.
+- **Observability.** No structured logging or error monitoring
+  (e.g. Sentry) wired in — right now, debugging a production issue
+  would mean reading raw process logs by hand.
+
+### Known accuracy gap
 - **RARC (remark code) extraction accuracy is weak** (~12% in eval,
   vs. 100% for CARC codes) — flagged, not hidden. CARC extraction is
-  reliable; RARC needs prompt work before it should be trusted.
-- **No rate limiting or cost caps** on the pipeline's API usage.
-- **Single point of failure** — no redundancy, this is a demo
-  deployment, not a production topology.
+  reliable; RARC needs targeted prompt work before it should be
+  trusted on real cases.
+- **No judgment on whether the original denial was valid.** See "What
+  it does" above — the system always attempts an appeal once
+  classification confidence clears the threshold; it does not assess
+  whether the payer's denial was actually correct.
+
+### A realistic rollout, not a flip of a switch
+Even with the above built, going live wouldn't mean turning this on for
+every denial at once: start in shadow mode (AI drafts, a human reviews
+100% of output) on one denial category for a few weeks, track agreement
+rate against what reviewers would have done manually, then reduce review
+sampling and expand categories one at a time as accuracy holds — the
+same phased-rollout logic the eval harness and confidence gate here are
+already built to support.
