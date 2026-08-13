@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: denial_appeal_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: app_dev_password
+      POSTGRES_DB: claims_triage
+    ports:
+      # Host port 5555 (non-default) to avoid colliding with any local Postgres on 5432.
+      - "5555:5432"
+    volumes:
+      - denial_appeal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d claims_triage"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  denial_appeal_pgdata:

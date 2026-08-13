@@ -1,0 +1,338 @@
+@import "tailwindcss";
+
+/* Tailwind v4 defaults the `dark:` variant to a `prefers-color-scheme`
+ * media query. This app has a manual light/dark toggle (see App.tsx /
+ * useTheme), so `dark:` needs to key off a `.dark` class on <html>
+ * instead -- this is the documented v4 way to opt into class-based dark
+ * mode without a tailwind.config.ts (there isn't one). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------
+ * Design system (Phase 6)
+ *
+ * Tailwind v4 uses a CSS-first theme (no tailwind.config.ts needed) --
+ * everything below becomes real Tailwind utilities (bg-brand-600,
+ * text-status-approved, font-display, etc.) usable anywhere in the app.
+ * Centralizing it here is the equivalent of a `tailwind.config.ts` theme
+ * extension: one source of truth, not ad hoc colors per component.
+ * ------------------------------------------------------------------- */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Brand / primary accent -- a restrained slate-blue, clean fintech/health
+     SaaS territory rather than a loud "AI product" purple. */
+  --color-brand-50: #eff6fb;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdcf5;
+  --color-brand-300: #8fc2ec;
+  --color-brand-400: #559fdc;
+  --color-brand-500: #2f7fc4;
+  --color-brand-600: #1f63a3;
+  --color-brand-700: #1c4f82;
+  --color-brand-800: #1a416b;
+  --color-brand-900: #17365a;
+
+  /* Neutral surface/text scale -- cool gray, not pure black/white. */
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  /* Semantic status colors -- one hue per denial-lifecycle state, tuned
+     for legibility as both pill-background and pill-text pairs. */
+  --color-status-new: #64748b;
+  --color-status-new-bg: #f1f5f9;
+  --color-status-new-fg: #334155;
+
+  --color-status-processing: #a16207;
+  --color-status-processing-bg: #fef3c7;
+  --color-status-processing-fg: #854d0e;
+
+  --color-status-classified: #1d4ed8;
+  --color-status-classified-bg: #dbeafe;
+  --color-status-classified-fg: #1e40af;
+
+  --color-status-appeal_drafted: #7c3aed;
+  --color-status-appeal_drafted-bg: #ede9fe;
+  --color-status-appeal_drafted-fg: #6d28d9;
+
+  --color-status-needs_review: #c2410c;
+  --color-status-needs_review-bg: #ffedd5;
+  --color-status-needs_review-fg: #9a3412;
+
+  --color-status-approved: #15803d;
+  --color-status-approved-bg: #dcfce7;
+  --color-status-approved-fg: #166534;
+
+  --color-status-rejected: #b91c1c;
+  --color-status-rejected-bg: #fee2e2;
+  --color-status-rejected-fg: #991b1b;
+
+  --color-status-sent: #0e7490;
+  --color-status-sent-bg: #cffafe;
+  --color-status-sent-fg: #155e75;
+
+  /* Confidence scale -- reused by the confidence bar/badge. */
+  --color-confidence-low: #dc2626;
+  --color-confidence-mid: #d97706;
+  --color-confidence-high: #16a34a;
+
+  /* Phase 7: small categorical extension for the monitoring dashboard --
+     identity color for a fixed, small set of named series (pipeline stage,
+     client company), never used for confidence/risk/status. Fixed
+     3-slot order (blue, amber, teal) validated against the dataviz skill's
+     six-checks validator on the app's white card surface: all adjacent
+     pairs clear the CVD (worst ΔE 13.1) and normal-vision (worst ΔE 19.8)
+     floors, so this order must not be reshuffled per-chart. Slot 1 reuses
+     --color-brand-500 (already load-bearing elsewhere); slots 2-3 are new.
+     Run: node scripts/validate_palette.js "#2f7fc4,#b5730c,#0f9488"
+     --mode light --surface "#ffffff" (from the dataviz skill directory). */
+  --color-viz-amber: #b5730c;
+  --color-viz-teal: #0f9488;
+
+  /* Single-hue ordinal ramp for the confidence histogram (dashboard) --
+     bucket index -> lightness step, per the dataviz skill's "sequential =
+     one hue, light to dark" rule. Reuses the brand scale on the light
+     surface. See index.css .dark block for the dark-surface-validated
+     replacement steps (the brand scale's own dark end is too dark to read
+     against a dark card, so it isn't just re-pointed at brand-700/900). */
+  --color-ordinal-1: #559fdc;
+  --color-ordinal-2: #2f7fc4;
+  --color-ordinal-3: #1c4f82;
+  --color-ordinal-4: #17365a;
+
+  /* Elevated-surface token -- card/input/header/modal/tooltip backgrounds.
+     Light mode: literal white sitting on the ink-50 page canvas. Kept as
+     its own token (not reused from the ink scale) so light mode stays
+     exactly white while dark mode gets a genuinely raised tone instead of
+     an inverted ink step. */
+  --color-surface: #ffffff;
+
+  /* Consistent corner-radius scale. */
+  --radius-card: 0.75rem;
+  --radius-pill: 999px;
+
+  /* Shadow tuned for cards on a light gray canvas. */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.08);
+  --shadow-card-hover: 0 4px 8px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+}
+
+/* ---------------------------------------------------------------------
+ * Dark mode -- real per-token dark values, not an automatic invert.
+ *
+ * Tailwind v4's @theme block only defines the light (default) values as
+ * CSS custom properties; every `bg-ink-50` / `text-status-approved-fg` /
+ * etc. utility Tailwind generates compiles to `var(--color-ink-50)` and
+ * friends rather than an inlined hex. That means redefining these same
+ * custom properties under a `.dark` selector re-themes every utility that
+ * already uses them, app-wide, with zero `dark:` prefixes needed for the
+ * design-system tokens themselves -- `dark:` is only needed for the
+ * handful of spots below that use a literal color instead of a token
+ * (see App.tsx, Modal.tsx, charts.tsx).
+ *
+ * Per the dataviz skill: dark mode gets its own chosen steps from each
+ * ramp, validated against the dark surface with
+ * scripts/validate_palette.js --mode dark --surface "#141b2b" (the
+ * --color-surface value below) -- see the categorical/ordinal palettes
+ * validated further down for the exact commands + output.
+ * ------------------------------------------------------------------- */
+.dark {
+  color-scheme: dark;
+
+  /* Neutral surface/text scale -- role-inverted (what was near-white
+     background becomes near-black, what was near-black text becomes
+     near-white) but re-tuned per step for a dark navy canvas rather than
+     a literal reversed copy of the light hex values. */
+  --color-ink-50: #0b1220;
+  --color-ink-100: #141b2b;
+  --color-ink-200: #232c40;
+  --color-ink-300: #34405a;
+  --color-ink-400: #7c8aa3;
+  --color-ink-500: #98a3ba;
+  --color-ink-600: #b6c0d3;
+  --color-ink-700: #ccd4e3;
+  --color-ink-800: #e4e9f2;
+  --color-ink-900: #f7f9fc;
+
+  /* Elevated surface -- deliberately lighter than the ink-50 page canvas
+     (dark UIs raise elevation by adding light, not by darkening further),
+     matching how `white` (light mode's surface) sits above `ink-50`
+     (light mode's page canvas). */
+  --color-surface: #141b2b;
+
+  /* Brand tints -- the vivid mid-range (400/500/600) is reused unchanged
+     (it already reads fine on a dark card), only the very-light tint/text
+     ends get dark-appropriate values so `bg-brand-50 text-brand-700`
+     pairings (active nav, category pills, "required" badges) keep their
+     contrast relationship instead of going dark-text-on-dark-tint. */
+  --color-brand-50: #12233a;
+  --color-brand-100: #17304d;
+  --color-brand-200: #1f3f61;
+  --color-brand-700: #bfdcf5;
+  --color-brand-800: #dbeafe;
+  --color-brand-900: #eff6fb;
+
+  /* Semantic status colors -- own dark-mode bg/fg pairs (not inverted),
+     each a low-lightness tinted background with a light, saturated
+     foreground so contrast holds against the pill's own background
+     regardless of what's behind it. */
+  --color-status-new: #94a3b8;
+  --color-status-new-bg: #1e2530;
+  --color-status-new-fg: #cbd5e1;
+
+  --color-status-processing: #f59e0b;
+  --color-status-processing-bg: #3a2a08;
+  --color-status-processing-fg: #fbbf24;
+
+  --color-status-classified: #3b82f6;
+  --color-status-classified-bg: #12233d;
+  --color-status-classified-fg: #93c5fd;
+
+  --color-status-appeal_drafted: #a78bfa;
+  --color-status-appeal_drafted-bg: #2c1a4d;
+  --color-status-appeal_drafted-fg: #c4b5fd;
+
+  --color-status-needs_review: #fb923c;
+  --color-status-needs_review-bg: #3a1f0a;
+  --color-status-needs_review-fg: #fdba74;
+
+  --color-status-approved: #22c55e;
+  --color-status-approved-bg: #0f2e1c;
+  --color-status-approved-fg: #86efac;
+
+  --color-status-rejected: #ef4444;
+  --color-status-rejected-bg: #3a1414;
+  --color-status-rejected-fg: #fca5a5;
+
+  --color-status-sent: #22d3ee;
+  --color-status-sent-bg: #0a2e33;
+  --color-status-sent-fg: #67e8f9;
+
+  /* Confidence scale (ConfidenceBadge) -- own dark values, validated as a
+     categorical triple against the dark surface:
+       node scripts/validate_palette.js "#e0555a,#c08600,#3f9d68" \
+         --mode dark --surface "#141b2b"
+     -> ALL CHECKS PASS (lightness band, chroma floor, contrast); CVD
+     adjacent separation lands in the legal 6-8 WARN band, which is fine
+     here because every use already ships mandatory secondary encoding --
+     ConfidenceBadge always pairs the color with a text label
+     ("High/Moderate/Low confidence"), never color alone. */
+  --color-confidence-low: #e0555a;
+  --color-confidence-mid: #c08600;
+  --color-confidence-high: #3f9d68;
+
+  /* Confidence histogram ordinal ramp (single hue, light->dark on the
+     light surface) -- dark-surface-validated replacement steps:
+       node scripts/validate_palette.js "#3a6ea8,#4f8ac2,#6aa3d6,#8fc2ec" \
+         --mode dark --surface "#141b2b" --ordinal
+     -> ALL CHECKS PASS (monotone L, adjacent ΔL >= 0.06, light-end
+     contrast, single hue). Bucket 0 (lowest confidence) is the step
+     closest to the dark surface; bucket 3 (highest) is lightest --
+     "more emphasis = further from the surface" in both modes. */
+  --color-ordinal-1: #3a6ea8;
+  --color-ordinal-2: #4f8ac2;
+  --color-ordinal-3: #6aa3d6;
+  --color-ordinal-4: #8fc2ec;
+
+  /* Categorical viz palette (cost-by-stage / cost-by-company bars) -- slot
+     1 keeps --color-brand-500 (already load-bearing, reads fine on dark),
+     slots 2-3 are dark-surface-validated replacements:
+       node scripts/validate_palette.js "#2f7fc4,#b3860c,#17a591" \
+         --mode dark --surface "#141b2b"
+     -> ALL CHECKS PASS (lightness band, chroma floor, CVD ΔE 13.2/tritan
+     20.5, normal-vision ΔE 18.1, contrast >=3:1). Same fixed 3-slot order
+     as light mode -- must not be reshuffled per-chart. */
+  --color-viz-amber: #b3860c;
+  --color-viz-teal: #17a591;
+
+  /* Shadows read as near-invisible on a dark canvas at the light-mode
+     alpha values (they're tuned against rgb(15 23 42), which is close to
+     the dark ink-50/surface tones themselves) -- boost opacity so cards
+     still separate visually from the page and from each other. */
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.4);
+  --shadow-card-hover: 0 4px 10px -2px rgb(0 0 0 / 0.5), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+}
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  body {
+    @apply bg-ink-50 text-ink-800 antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-[var(--radius-card)] border border-ink-200 shadow-[var(--shadow-card)];
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+      focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+      focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500
+      bg-brand-600 text-white hover:bg-brand-700 shadow-sm;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+      focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500
+      bg-surface text-ink-700 border border-ink-300 hover:bg-ink-50;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+      focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500
+      bg-surface text-status-rejected border border-status-rejected/30 hover:bg-status-rejected-bg;
+  }
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+      focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500
+      bg-surface text-status-approved border border-status-approved/30 hover:bg-status-approved-bg;
+  }
+
+  .input {
+    @apply block w-full rounded-md border border-ink-300 bg-surface px-3 py-2 text-sm text-ink-800
+      placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
+  }
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wide text-ink-500 mb-1;
+  }
+
+  /* Horizontal-scroll wrapper for wide tables on narrow screens. Pure-CSS
+     scroll-shadow trick: two opaque cover gradients scroll with the content
+     (background-attachment: local) so they sit flush against the table's
+     surface background, while two shadow gradients stay fixed to the
+     viewport edge (background-attachment: scroll) and fade out once
+     there's nothing left to scroll toward. No JS scroll-position tracking
+     needed. Built from --color-surface / --color-ink-900 (both redefined
+     under .dark) rather than literal white/black so the effect re-themes
+     with the rest of the app instead of leaving a light-mode-only white
+     card edge in dark mode. */
+  .table-scroll {
+    @apply overflow-x-auto;
+    background:
+      linear-gradient(to right, var(--color-surface) 30%, transparent),
+      linear-gradient(to left, var(--color-surface) 30%, transparent) 100% 0,
+      linear-gradient(to right, color-mix(in srgb, var(--color-ink-900) 12%, transparent), transparent),
+      linear-gradient(to left, color-mix(in srgb, var(--color-ink-900) 12%, transparent), transparent) 100% 0;
+    background-repeat: no-repeat;
+    background-color: var(--color-surface);
+    background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+}

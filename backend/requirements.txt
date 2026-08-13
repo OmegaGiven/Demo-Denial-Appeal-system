@@ -1,0 +1,17 @@
+# --- Web framework (later phase, pinned now) ---
+fastapi>=0.115.5
+uvicorn[standard]>=0.32.1
+
+# --- Database ---
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+psycopg[binary]>=3.2.10
+
+# --- Config ---
+python-dotenv>=1.0.1
+
+# --- LLM (later phase, pinned now so the dependency is locked) ---
+anthropic>=0.40.0
+
+# --- Data validation (later phase, used by FastAPI request/response models) ---
+pydantic>=2.10.3
